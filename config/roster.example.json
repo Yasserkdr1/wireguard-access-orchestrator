@@ -1,0 +1,7 @@
+{
+  "members": [
+    {"user_id": 7, "group_id": 1},
+    {"user_id": 8, "group_id": 1},
+    {"user_id": 12, "group_id": 2}
+  ]
+}
