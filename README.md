@@ -1,47 +1,60 @@
-# WireGuard Access Orchestrator - Stage 1 (local prototype)
+# WireGuard Access Orchestrator
 
-Goal: evolve the existing CTF WireGuard broker + iptables controller into a
-standalone WireGuard provisioning / **nftables** access orchestration system.
+Standalone Network Security automation project extracted and generalized from the
+AppsClub CTF infrastructure. Current stage: **Stage 2 - local device registry**.
 
-## Stage 1: offline identity roster + retained source
+Goal: WireGuard peer lifecycle + dynamic group-based access control through
+nftables + reconciliation of intended and enforced network state.
 
-- `legacy/appsclub_vpn_broker.py` and `legacy/appsclub_vip_controller.py` are
-  **unaltered copies** of the user's CTF implementation for review/refactoring.
-  **Do not run them directly**: they contain deployment-specific paths, IPs and
-  system network commands targeting an existing WireGuard interface.
-- `src/wgao/roster.py` implements an independent fail-closed local roster parser.
-- `config/roster.example.json` holds fake local demo identities.
-- `tests/` contains the adapted original unit tests plus new roster tests.
+## Current behavior (Stage 2)
 
-This stage is deliberately **non-privileged**: it does NOT provision WG peers,
-add nftables rules, or establish a VPN. The JSON roster is for a **trusted
-local demo only**, not end-user authentication. No internet/cloud required.
+- Trusted local users/groups loaded from `config/roster.example.json`
+- Public-key registration (clients own their private keys)
+- SQLite device registry with unique IP allocation and 2-device limit
+- Revocation and roster-change reconciliation **in local registry only**
+- Read-only snapshot of intended access per group
+- **No WireGuard or nftables changes yet**, no cloud or root required
 
-## On Kali (no sudo)
+`legacy/` retains code from the original CTF project for comparison; do **not**
+run the legacy broker directly on Kali.
+
+## Kali quick start
 
 ```bash
-cd wireguard-access-orchestrator-starter
+# Run as kali (not root), from the Windows-shared project directory
 python3 -m unittest discover -s tests -p 'test_*.py' -v
-PYTHONPATH=src python3 -m wgao --roster config/roster.example.json
+PYTHONPATH=src python3 -m wgao users
+
+# A disposable *demo* key; its private half is discarded, so this peer is
+# only for testing registration, not establishing a tunnel.
+PUBKEY=$(wg genkey | wg pubkey)
+PYTHONPATH=src python3 -m wgao register --user-id 7 --label Kali-Test --public-key "$PUBKEY"
+PYTHONPATH=src python3 -m wgao devices
+PYTHONPATH=src python3 -m wgao policy
 ```
 
-Expected: tests pass, then 3 demo users are printed; no system network
-settings are changed. The original tests use mocked subprocess calls and
-temporary SQLite files, rather than real peers.
+See [STAGE2.md](STAGE2.md) for revocation and group-change scenarios.
 
-## Next stages
+The database defaults to `~/.local/state/wgao/peers.sqlite3` on **Kali**, so
+it is kept off Windows shared folders and out of Git. Do not use `sudo` for
+this stage. The trusted admin CLI is not a login or user-facing API.
 
-2. Make broker configuration non-root and injectable. Replace its CTFd roster
-   lookup with the local provider for demo; keep authenticated callers.
-3. Build a scoped nftables backend with a dedicated `inet wgao` table and
-   `default-deny` filtering. Start by rendering rules without applying them.
-4. Integrate WireGuard peers and test on Linux network namespaces on one VM.
-5. Test revocation, reconciliation, rollback and enforcement for existing flows.
+## Planned stages
 
-## Safety and publication
+- Stage 3: dedicated nftables table/set generation with dry-run and tests
+- Stage 4: real WireGuard gateway integration and enforcement in Linux namespaces
+- Stage 5: revocation of existing flows, failure/recovery tests, architecture diagram
 
-- Review both legacy sources before publishing; they contain old infrastructure
-  addresses/paths. Keep secrets, tokens and `.conf` files out of Git.
-- Never execute `flush ruleset` or run legacy broker with `sudo` on Kali.
-- GitHub README should link to the original CTF project and state that this
-  standalone orchestrator was extracted and generalized from it.
+## Provenance
+
+The original project implemented WireGuard peers and team-based filtering for
+CTF challenges. This standalone project separates provisioning, identity and
+policy evaluation from CTFd/Kubernetes. It is not a separate, independently
+invented implementation and is not production-ready.
+
+## Security boundary
+
+The local JSON roster is trusted test data. Never expose an API where the
+caller can submit arbitrary `user_id` without verified authentication and
+authorization. Keep secrets, private client keys and live WireGuard configs
+outside the repository.
