@@ -1,60 +1,80 @@
 # WireGuard Access Orchestrator
 
-Standalone Network Security automation project extracted and generalized from the
-AppsClub CTF infrastructure. Current stage: **Stage 2 - local device registry**.
+**Network Security Automation · Python · WireGuard · nftables · Linux**
 
-Goal: WireGuard peer lifecycle + dynamic group-based access control through
-nftables + reconciliation of intended and enforced network state.
+A lightweight laboratory for automated VPN peer provisioning, group-based network access control, and continuous security policy reconciliation.
 
-## Current behavior (Stage 2)
+Runs on a **single Linux VM**, without cloud services or additional virtual machines.
 
-- Trusted local users/groups loaded from `config/roster.example.json`
-- Public-key registration (clients own their private keys)
-- SQLite device registry with unique IP allocation and 2-device limit
-- Revocation and roster-change reconciliation **in local registry only**
-- Read-only snapshot of intended access per group
-- **No WireGuard or nftables changes yet**, no cloud or root required
+> **Scope:** isolated security engineering demonstration, not a production-ready VPN service.
 
-`legacy/` retains code from the original CTF project for comparison; do **not**
-run the legacy broker directly on Kali.
+## Access-control workflow
 
-## Kali quick start
-
-```bash
-# Run as kali (not root), from the Windows-shared project directory
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-PYTHONPATH=src python3 -m wgao users
-
-# A disposable *demo* key; its private half is discarded, so this peer is
-# only for testing registration, not establishing a tunnel.
-PUBKEY=$(wg genkey | wg pubkey)
-PYTHONPATH=src python3 -m wgao register --user-id 7 --label Kali-Test --public-key "$PUBKEY"
-PYTHONPATH=src python3 -m wgao devices
-PYTHONPATH=src python3 -m wgao policy
+```mermaid
+flowchart TD
+  A[Trusted administrator roster] --> B{Roster valid?}
+  B -- No --> K[Fail closed: gateway wg0 down]
+  B -- Yes --> C[SQLite device registry]
+  C --> D{Authorized user and valid key?}
+  D -- No --> E[Reject or revoke access]
+  D -- Yes --> F[Desired WireGuard peers and nftables sets]
+  F --> G{Actual configuration matches?}
+  G -- Yes --> H[Continue monitoring]
+  G -- No --> I[Reconcile network state]
+  I --> J{Correction successful?}
+  J -- No --> K
+  J -- Yes --> H
+  E --> H
+  H --> B
 ```
 
-See [STAGE2.md](STAGE2.md) for revocation and group-change scenarios.
+## Capabilities
 
-The database defaults to `~/.local/state/wgao/peers.sqlite3` on **Kali**, so
-it is kept off Windows shared folders and out of Git. Do not use `sudo` for
-this stage. The trusted admin CLI is not a login or user-facing API.
+- Automatic provisioning and revocation of individual WireGuard peers
+- Group-based TCP destination and port allowlists with nftables default-drop filtering
+- Detection and remediation of missing peers, rogue peers, and stale nftables set membership
+- Detection and repair of unauthorized changes to the project's nftables table
+- Revocation of old access and key retirement after group changes
+- Fail-closed demonstration when the authorization source becomes invalid during an active VPN session
 
-## Planned stages
+## Quick start — Kali Linux
 
-- Stage 3: dedicated nftables table/set generation with dry-run and tests
-- Stage 4: real WireGuard gateway integration and enforcement in Linux namespaces
-- Stage 5: revocation of existing flows, failure/recovery tests, architecture diagram
+Requirements: Python 3.10+, Bash, iproute2, wireguard-tools, nftables, unshare, and sysctl.
 
-## Provenance
+```bash
+# Unit tests — no root
+python3 -m unittest discover -s tests/unit -v
 
-The original project implemented WireGuard peers and team-based filtering for
-CTF challenges. This standalone project separates provisioning, identity and
-policy evaluation from CTFd/Kubernetes. It is not a separate, independently
-invented implementation and is not production-ready.
+# Show local trusted users
+PYTHONPATH=src python3 -m wgao users
 
-## Security boundary
+# Full live integration suite — disposable network namespaces
+sudo bash scripts/run_integration.sh all
 
-The local JSON roster is trusted test data. Never expose an API where the
-caller can submit arbitrary `user_id` without verified authentication and
-authorization. Keep secrets, private client keys and live WireGuard configs
-outside the repository.
+# Review measured durations
+python3 tools/metrics.py summary metrics/results/*.json
+```
+
+You can also run `full` or `active-fail-closed` separately. The original `scripts/live_wg_nft_lab.sh` command remains available.
+
+## Project structure
+
+| Path | Purpose |
+|---|---|
+| `src/wgao/` | Broker, registry, policy generation, reconciliation and integrity checks |
+| `config/` | Example identity roster and resource allowlists |
+| `scripts/lab/lib/` | Disposable network topology and reconciler setup |
+| `tests/unit/` | Unprivileged Python unit tests |
+| `tests/integration/` | Separate live network security scenarios |
+| `tools/metrics.py` | Measurements and JSON reports |
+| `metrics/results/` | Generated, Git-ignored test results |
+| `docs/` | Architecture, workflows, tests and security limitations |
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Security workflows](docs/workflows.md)
+- [Testing and metrics](docs/testing.md)
+- [Security model and limitations](docs/security.md)
+
+**Known limitations:** the roster is trusted administrator input, not user authentication. Server-side peer restoration may require a client-side WireGuard handshake reset. Fail-closed depends on a running reconciler. Policy integrity is limited to the WGAO-owned nftables table. The TCP/443 test server is not HTTPS/TLS. All timings are VM observations, not performance guarantees.
