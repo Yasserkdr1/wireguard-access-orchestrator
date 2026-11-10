@@ -9,3 +9,7 @@ __pycache__/
 *.pem
 .env
 secrets/
+metrics/results/
+*.log
+*.sock
+*.nft
