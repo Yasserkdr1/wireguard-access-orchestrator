@@ -10,7 +10,7 @@ Runs on a **single Linux VM**, without cloud services or additional virtual mach
 
 ## Access-control workflow
 
-![Access-control workflow](docs/Workflow.svg)
+![Access-control workflow](docs/workflow.png.jpg)
 
 
 ## Capabilities
