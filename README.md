@@ -10,23 +10,8 @@ Runs on a **single Linux VM**, without cloud services or additional virtual mach
 
 ## Access-control workflow
 
-```mermaid
-flowchart TD
-  A[Trusted administrator roster] --> B{Roster valid?}
-  B -- No --> K[Fail closed: gateway wg0 down]
-  B -- Yes --> C[SQLite device registry]
-  C --> D{Authorized user and valid key?}
-  D -- No --> E[Reject or revoke access]
-  D -- Yes --> F[Desired WireGuard peers and nftables sets]
-  F --> G{Actual configuration matches?}
-  G -- Yes --> H[Continue monitoring]
-  G -- No --> I[Reconcile network state]
-  I --> J{Correction successful?}
-  J -- No --> K
-  J -- Yes --> H
-  E --> H
-  H --> B
-```
+![Access-control workflow](docs/Workflow.svg)
+
 
 ## Capabilities
 
