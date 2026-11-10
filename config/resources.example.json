@@ -1,0 +1,22 @@
+{
+  "vpn_interface": "wg0",
+  "resource_interface": "eth1",
+  "groups": {
+    "1": [
+      {
+        "address": "10.200.1.10",
+        "port": 443
+      },
+      {
+        "address": "10.200.1.11",
+        "port": 22
+      }
+    ],
+    "2": [
+      {
+        "address": "10.200.2.10",
+        "port": 443
+      }
+    ]
+  }
+}

@@ -1,10 +1,6 @@
-"""Stage 2: LOCAL, NON-PRIVILEGED device and access lifecycle.
-
-Adapted from the user's CTF WireGuard broker: SQLite device registry, IP
-allocation, membership-change revocation and retired-key tracking.
-
-IMPORTANT: no WireGuard or nftables commands are executed by this module.
-The local roster is a TRUSTED ADMIN DEMO input, not user authentication.
+"""Local device registry and VPN access lifecycle.
+The trusted roster is not an authentication API.
+No privileged network commands are executed here.
 """
 from __future__ import annotations
 
@@ -66,7 +62,7 @@ def open_db(path: str | Path) -> sqlite3.Connection:
 
 
 def allocate_ip(conn: sqlite3.Connection) -> str:
-    """Reserve from our demo pool. Live gateway overlap checks come in Stage 4."""
+    """Reserve from our demo pool. Use a dedicated VPN address pool."""
     assigned = {row[0] for row in conn.execute("SELECT ip FROM devices")}
     for last_octet in IP_LAST_OCTETS:
         ip = f"10.77.0.{last_octet}/32"
@@ -131,7 +127,7 @@ def list_devices(db_path: str | Path) -> list[dict]:
 
 
 def revoke_device(db_path: str | Path, device_id: str) -> dict:
-    """Trusted local admin operation; Stage 4 will remove the live WG peer."""
+    """Trusted local admin operation; The reconciler removes the live peer."""
     if not isinstance(device_id, str) or not DEVICE_ID_PATTERN.fullmatch(device_id):
         raise ValueError("Invalid device ID")
     conn = open_db(db_path)
@@ -149,7 +145,7 @@ def revoke_device(db_path: str | Path, device_id: str) -> dict:
 
 
 def reconcile_local(db_path: str | Path, roster_path: str | Path) -> dict:
-    """Revoke stale database memberships; NOT live network access yet."""
+    """Revoke stale database memberships; Live state is reconciled separately."""
     roster = load_roster(roster_path)  # Validate fully before any DB mutation
     conn = open_db(db_path)
     try:
@@ -171,7 +167,7 @@ def reconcile_local(db_path: str | Path, roster_path: str | Path) -> dict:
 
 
 def desired_access_by_group(db_path: str | Path) -> dict[str, list[str]]:
-    """Desired firewall membership snapshot; NO nftables modifications yet."""
+    """Desired firewall membership snapshot; No firewall changes are made here."""
     conn = open_db(db_path)
     try:
         result: dict[str, list[str]] = {}

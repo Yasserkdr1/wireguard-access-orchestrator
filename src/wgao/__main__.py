@@ -1,7 +1,8 @@
-"""Stage 2 CLI - local simulation only, never executes wg/nft/sudo."""
+"""Local CLI: read-only nftables policy preview, never executes wg/nft/sudo."""
 import argparse
 import json
 from pathlib import Path
+from .nft_policy import render_policy
 from .roster import load_roster
 from .broker import (
     register_device, list_devices, revoke_device, reconcile_local, desired_access_by_group,
@@ -9,7 +10,7 @@ from .broker import (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="WireGuard Access Orchestrator (local Stage 2)")
+    parser = argparse.ArgumentParser(description="WireGuard Access Orchestrator (local CLI)")
     parser.add_argument("--roster", default="config/roster.example.json")
     parser.add_argument("--db", default=str(Path.home() / ".local/state/wgao/peers.sqlite3"))
     sub = parser.add_subparsers(dest="action")
@@ -23,8 +24,24 @@ def main() -> None:
     rev.add_argument("--device-id", required=True)
     sub.add_parser("reconcile", help="Revoke records that no longer match roster")
     sub.add_parser("policy", help="View desired access IPs by group (no nft changes)")
+    prev = sub.add_parser("firewall-preview", help="Render demo nftables rules (NEVER apply)")
+    prev.add_argument("--resources", default="config/resources.example.json")
+    prev.add_argument("--output", help="Write rules to a file instead of stdout")
     args = parser.parse_args()
     try:
+        if args.action == "firewall-preview":
+            script = render_policy(args.db, args.roster, args.resources)
+            if args.output:
+                path = Path(args.output).expanduser()
+                # Prevent accidentally overwriting tracked project files.
+                if path.exists():
+                    raise ValueError("Output file exists; choose a new path")
+                with path.open("x", encoding="utf-8") as output:
+                    output.write(script)
+                print(f"Wrote a preview-only nftables script to {path}")
+            else:
+                print(script, end="")
+            return
         if args.action in (None, "users"):
             roster = load_roster(args.roster)
             result = {"trusted_local_users": roster}

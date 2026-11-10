@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 def load_roster(path: str | Path) -> dict[int, int]:
-    """Read local users/groups; preserve CTF broker's integer ID contract.
+    """Read local users/groups; require positive integer identities.
 
     Fail closed on a malformed identity roster. The caller is a trusted local
     developer/admin, NOT an anonymous network client.
